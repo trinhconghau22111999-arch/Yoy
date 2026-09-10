@@ -16,7 +16,8 @@ android {
         // đây là "bản mới hơn" để cho cài ĐÈ lên bản cũ. Cố định "1" mãi mãi trước đây khiến
         // Android không phân biệt được bản nào mới hơn - 1 trong 2 lý do bắt buộc phải gỡ cài
         // lại mỗi lần cập nhật (lý do còn lại là chữ ký - xem signingConfigs bên dưới).
-        versionCode (System.currentTimeMillis() / 1000).toInteger()
+        def buildVersionCode = (System.currentTimeMillis() / 1000L).toInteger()
+        versionCode buildVersionCode
         versionName "1.0"
     }
 
