@@ -59,6 +59,16 @@ class MainActivity : AppCompatActivity() {
     // không gây lỗi (gọi play() khi đã đang phát vô hại) nhưng lãng phí. Dùng 1 Handler cố định
     // + huỷ lịch hẹn cũ (nếu có) trước khi đặt lịch mới để chỉ còn ĐÚNG 1 lịch hẹn tại 1 thời điểm.
     private val resumePlaybackHandler = Handler(Looper.getMainLooper())
+    // Đánh dấu đang trong chuỗi TỰ pause() rồi TỰ play() lại ở onPause() bên dưới (để đánh thức
+    // WebView) - PHÂN BIỆT với lúc người dùng/YouTube chủ động pause thật sự. Vì tự pause() cũng
+    // làm nổ sự kiện 'pause' của video y hệt pause thật -> WakeLockBridge.release() bên dưới cần
+    // biết để BỎ QUA, không nhả wake lock/tắt setShowWhenLocked ngay giữa chuỗi - nếu không, có
+    // một khoảng hở ngắn (trong lúc chờ tự play() lại) mà app bị hệ thống coi là "không còn giữ
+    // hiển thị trên màn hình khoá" nữa, Android có thể (tuỳ máy, tuỳ thời điểm) tranh thủ thu hồi
+    // Surface video ngay trong khoảng hở đó trước khi play() kịp chạy lại -> phát lại thất bại.
+    // Đây chính là lý do trước đây gặp kiểu lỗi "tắt màn hình lần đầu thì được, lần sau lại không
+    // phát tiếp" - xác suất trúng khoảng hở đó khác nhau mỗi lần, không phải lần nào cũng dính.
+    private var isAutoPausing = false
 
     // Nhận lệnh điều khiển (Phát/Tạm dừng/Lùi/Tới) từ nút bấm trên notification & màn hình
     // khoá - PlaybackService gửi broadcast này về, ở đây chỉ việc chạy JS lên đúng <video>
@@ -468,6 +478,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (isVideoPlaying) {
+            isAutoPausing = true
             webView.evaluateJavascript(
                 "(function(){var v=document.querySelector('video'); if(v) v.pause();})();", null
             )
@@ -476,6 +487,10 @@ class MainActivity : AppCompatActivity() {
             resumePlaybackHandler.removeCallbacksAndMessages(null)
             resumePlaybackHandler.postDelayed({
                 controlVideoPlayback(PlaybackService.COMMAND_PLAY)
+                // Hạ cờ NGAY SAU khi đã gọi play() lại - từ đây trở đi, nếu video thật sự dừng
+                // (người dùng bấm pause, video kết thúc, hoặc lệnh play() ở trên vì lý do gì đó
+                // không thành công) thì đó là pause THẬT, release() cần xử lý bình thường trở lại.
+                isAutoPausing = false
             }, 450L)
         }
     }
@@ -1013,6 +1028,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun release() {
             runOnUiThread {
+                // Đang trong chuỗi TỰ pause() rồi TỰ play() lại (xem onPause() + isAutoPausing ở
+                // trên) - đây KHÔNG phải người dùng/YouTube chủ động dừng thật, chỉ là bước dọn
+                // trạng thái tạm thời trước khi tự phát lại 450ms sau. Bỏ qua hoàn toàn, không
+                // nhả wake lock/tắt setShowWhenLocked - tránh tạo khoảng hở khiến Android có thể
+                // thu hồi Surface video ngay giữa chuỗi trước khi kịp phát lại.
+                if (isAutoPausing) return@runOnUiThread
+
                 isVideoPlaying = false
                 wakeLock?.let { if (it.isHeld) it.release() }
                 // Tắt lại "hiện đè lên màn hình khoá" khi không còn phát gì nữa - trả màn hình
