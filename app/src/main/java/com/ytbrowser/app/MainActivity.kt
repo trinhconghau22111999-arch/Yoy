@@ -558,9 +558,39 @@ class MainActivity : AppCompatActivity() {
                 ];
 
                 function hideAppBanners() {
+                    // LOP BAO VE TUYET DOI (them do van con bao "icon kinh lup bi che/an" du
+                    // 2 vong lap ben duoi da duoc sua rieng le truoc do): dinh nghia 1 ham
+                    // kiem tra "phan tu nay co PHAI LA hoac co CHUA BEN TRONG nut tim kiem/
+                    // logo/thanh dieu huong chinh cua YouTube hay khong" - neu co, TUYET DOI
+                    // khong an/xoa no, bat ke selector quang cao nao o tren co khop trung hay
+                    // khong. Day la lop chan cuoi cung, ap dung cho CA 3 cho dang go/an phan tu
+                    // trong ham nay (thay vi phai doan tiep tung class/selector cu the tiep
+                    // theo co the gay nham - vd selector ".mobile-topbar-header-app-banner" o
+                    // tren neu vo tinh khop trung ngay chinh thanh topbar that thay vi 1 banner
+                    // rieng, se xoa mat ca icon tim kiem ben trong no).
+                    function isSearchOrTopbarCore(el) {
+                        if (!el) return false;
+                        try {
+                            if (el.matches && el.matches(
+                                '[aria-label*="search" i], [aria-label*="tìm kiếm" i], [aria-label*="tim kiem" i], ' +
+                                'button#search-icon-legacy, ytd-searchbox, tp-yt-paper-icon-button#search-icon, ' +
+                                'a[href*="/results?search_query"], ytm-topbar-logo-renderer'
+                            )) return true;
+                            if (el.querySelector && el.querySelector(
+                                '[aria-label*="search" i], [aria-label*="tìm kiếm" i], [aria-label*="tim kiem" i], ' +
+                                'button#search-icon-legacy, ytd-searchbox, tp-yt-paper-icon-button#search-icon, ' +
+                                'a[href*="/results?search_query"], ytm-topbar-logo-renderer'
+                            )) return true;
+                        } catch(e) {}
+                        return false;
+                    }
+
                     fallbackBannerSelectors.forEach(function(sel) {
                         try {
-                            document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
+                            document.querySelectorAll(sel).forEach(function(el) {
+                                if (isSearchOrTopbarCore(el)) return; // xem giai thich o tren
+                                el.remove();
+                            });
                         } catch(e) {}
                     });
 
@@ -575,6 +605,7 @@ class MainActivity : AppCompatActivity() {
                             // hơn 6 phần tử con) thì chỉ ẩn đúng phần tử đã khớp text (el), không
                             // ẩn cả container.
                             var target = (container.children && container.children.length > 6) ? el : container;
+                            if (isSearchOrTopbarCore(target)) return; // xem [isSearchOrTopbarCore]
                             target.style.display = 'none';
                         }
                     });
@@ -594,6 +625,7 @@ class MainActivity : AppCompatActivity() {
                         // khop, khong dung lieu lam anh huong ca cum cha chua no.
                         var container = el.closest('[class*="banner"],[class*="promo"],[class*="mealbar"]');
                         var target = (container && container.children && container.children.length <= 6) ? container : el;
+                        if (isSearchOrTopbarCore(target)) return; // xem [isSearchOrTopbarCore]
                         target.style.display = 'none';
                     });
                 }
