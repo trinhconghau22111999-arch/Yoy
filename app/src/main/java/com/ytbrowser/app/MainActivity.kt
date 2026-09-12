@@ -475,6 +475,11 @@ class MainActivity : AppCompatActivity() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
         startActivity(intent)
+        // Hiệu ứng chuyển cảnh "TRÁI QUA PHẢI": activity mới (app vừa mở lại) trượt vào từ bên
+        // trái, activity cũ trượt ra bên phải - thay cho hiệu ứng mặc định của hệ thống (phải
+        // qua trái) khi không override gì. Phải gọi NGAY sau startActivity(), trước finish().
+        @Suppress("DEPRECATION")
+        overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
         finish()
         Runtime.getRuntime().exit(0)
     }
