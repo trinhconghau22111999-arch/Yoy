@@ -234,7 +234,10 @@ class MainActivity : AppCompatActivity() {
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
         settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
-        settings.userAgentString = settings.userAgentString // giữ user-agent mặc định của thiết bị
+        // Giữ user-agent MẶC ĐỊNH của thiết bị - không gán/ghi đè gì ở đây (dòng gán
+        // settings.userAgentString = settings.userAgentString cũ chỉ là gán chính nó
+        // cho chính nó, không có tác dụng gì, nên bỏ hẳn - WebView vốn đã tự dùng UA mặc
+        // định nếu không đụng vào thuộc tính này).
 
         webView.addJavascriptInterface(SpeedBridge(), "AndroidSpeed")
         webView.addJavascriptInterface(VoiceBridge(), "AndroidVoice")
