@@ -521,23 +521,69 @@ class MainActivity : AppCompatActivity() {
 
     // Bấm thẳng vào logo YouTube (ytm-topbar-logo-renderer, góc trái thanh trên cùng) để về
     // trang chủ -> khởi động lại app từ đầu, y như yêu cầu ở handleBackToPossibleHome() phía
-    // trên. Dùng delegated click listener bắt ở giai đoạn CAPTURE trên document (chặn trước khi
-    // SPA của YouTube kịp tự điều hướng nội bộ) - không cần MutationObserver rebind vì
-    // delegation tự bắt được cả phần tử được thêm sau này.
+    // trên.
+    // LƯU Ý: bản đầu chỉ gắn 1 listener delegated trên `document` -> KHÔNG ăn, nhiều khả năng
+    // do chính SPA của YouTube cũng có sẵn listener click toàn cục để tự điều hướng nội bộ,
+    // gắn TRƯỚC (từ lúc script gốc của trang chạy, trước khi JS này được tiêm vào sau
+    // onPageFinished) và gọi stopPropagation() - khiến listener gắn SAU trên CÙNG 1 node
+    // document/cùng capture phase không bao giờ được gọi tới nữa, bất kể có match đúng phần tử
+    // hay không.
+    // Sửa bằng 2 lớp:
+    //  1) Gắn THẲNG vào từng phần tử logo tìm được (giống đúng cách injectVoiceSearchBridge() ở
+    //     trên đã làm thành công với nút giọng nói) thay vì chỉ delegate từ document - dùng
+    //     bound-flag + MutationObserver + setInterval để tự bắt lại nếu phần tử bị YouTube tạo
+    //     lại (Polymer re-render).
+    //  2) Gắn thêm 1 listener delegated trên `window` (không phải document) ở capture phase làm
+    //     lớp dự phòng - window LUÔN được duyệt TRƯỚC document trong capture phase theo đúng thứ
+    //     tự cây DOM, bất kể ai đăng ký listener trước, nên chắc chắn chạy trước mọi listener
+    //     toàn cục mà YouTube có thể đã gắn trên document. Dùng stopImmediatePropagation() để
+    //     chặn tuyệt đối, không cho bất kỳ listener nào khác (kể cả cùng phase) chạy tiếp.
     private fun injectHomeLogoRestartHook() {
         val js = """
             (function() {
                 if (window.__ytbrowser_home_restart_hook) return;
                 window.__ytbrowser_home_restart_hook = true;
 
-                document.addEventListener('click', function(ev) {
-                    var logo = ev.target && ev.target.closest && ev.target.closest('ytm-topbar-logo-renderer');
+                var LOGO_SELECTORS = [
+                    'ytm-topbar-logo-renderer',
+                    'a[href="/"]',
+                    '[aria-label*="home" i]',
+                    '[aria-label*="trang chủ" i]',
+                    '[aria-label*="trang chu" i]'
+                ];
+
+                function fireRestart(ev) {
+                    if (!window.AndroidNav) return false;
+                    ev.preventDefault();
+                    ev.stopImmediatePropagation();
+                    window.AndroidNav.homeLogoClicked();
+                    return true;
+                }
+
+                // Lớp 1: gắn thẳng vào từng phần tử logo tìm được trong DOM.
+                function hookLogoElements() {
+                    LOGO_SELECTORS.forEach(function(sel) {
+                        try {
+                            document.querySelectorAll(sel).forEach(function(el) {
+                                if (el.__ytbrowser_home_bound) return;
+                                el.__ytbrowser_home_bound = true;
+                                el.addEventListener('click', fireRestart, true);
+                            });
+                        } catch (e) {}
+                    });
+                }
+                hookLogoElements();
+                setInterval(hookLogoElements, 1000);
+                var mo = new MutationObserver(hookLogoElements);
+                mo.observe(document.documentElement, { childList: true, subtree: true });
+
+                // Lớp 2: dự phòng trên window (chạy trước document trong capture phase) - phòng
+                // trường hợp phần tử thật nằm sâu trong Shadow DOM khiến lớp 1 không với tới, chỉ
+                // còn cách bắt qua target đã được "retarget" khi sự kiện thoát ra ngoài.
+                window.addEventListener('click', function(ev) {
+                    var logo = ev.target && ev.target.closest && ev.target.closest(LOGO_SELECTORS.join(','));
                     if (!logo) return;
-                    if (window.AndroidNav) {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        window.AndroidNav.homeLogoClicked();
-                    }
+                    fireRestart(ev);
                 }, true);
             })();
         """.trimIndent()
