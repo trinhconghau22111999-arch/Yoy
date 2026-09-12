@@ -596,8 +596,7 @@ class MainActivity : AppCompatActivity() {
                     // Một số dạng quảng cáo (thẻ tài trợ trong feed, không phải quảng cáo phát
                     // trong video) chỉ ghi ngắn gọn "Bỏ qua" chứ không kèm "quảng cáo" phía sau -
                     // nếu thiếu 2 dòng này thì nút của chúng không khớp được với danh sách trên.
-                    'bỏ qua', 'bo qua',
-                    'skip'
+                    'bỏ qua', 'bo qua'
                 ];
                 var BANNER_TEXT = [
                     'mở trong ứng dụng', 'mo trong ung dung',
@@ -639,19 +638,23 @@ class MainActivity : AppCompatActivity() {
                     // theo co the gay nham - vd selector ".mobile-topbar-header-app-banner" o
                     // tren neu vo tinh khop trung ngay chinh thanh topbar that thay vi 1 banner
                     // rieng, se xoa mat ca icon tim kiem ben trong no).
+                    // Bảo vệ các phần tử UI CHÍNH của YouTube - tuyệt đối không ẩn/xoá,
+                    // kể cả khi selector quảng cáo vô tình khớp trùng.
+                    var PROTECTED_SELECTORS =
+                        '[aria-label*="search" i], [aria-label*="tìm kiếm" i], [aria-label*="tim kiem" i], ' +
+                        '[aria-label*="settings" i], [aria-label*="cài đặt" i], [aria-label*="cai dat" i], ' +
+                        '[aria-label*="account" i], [aria-label*="tài khoản" i], ' +
+                        '[aria-label*="menu" i], [aria-label*="more" i], ' +
+                        'button#search-icon-legacy, ytd-searchbox, tp-yt-paper-icon-button#search-icon, ' +
+                        'a[href*="/results?search_query"], ytm-topbar-logo-renderer, ' +
+                        'ytm-topbar-menu-button-renderer, #topbar, .topbar, ytm-mobile-topbar-renderer';
                     function isSearchOrTopbarCore(el) {
                         if (!el) return false;
                         try {
-                            if (el.matches && el.matches(
-                                '[aria-label*="search" i], [aria-label*="tìm kiếm" i], [aria-label*="tim kiem" i], ' +
-                                'button#search-icon-legacy, ytd-searchbox, tp-yt-paper-icon-button#search-icon, ' +
-                                'a[href*="/results?search_query"], ytm-topbar-logo-renderer'
-                            )) return true;
-                            if (el.querySelector && el.querySelector(
-                                '[aria-label*="search" i], [aria-label*="tìm kiếm" i], [aria-label*="tim kiem" i], ' +
-                                'button#search-icon-legacy, ytd-searchbox, tp-yt-paper-icon-button#search-icon, ' +
-                                'a[href*="/results?search_query"], ytm-topbar-logo-renderer'
-                            )) return true;
+                            if (el.matches && el.matches(PROTECTED_SELECTORS)) return true;
+                            if (el.querySelector && el.querySelector(PROTECTED_SELECTORS)) return true;
+                            // Bảo vệ thêm: nếu el nằm BÊN TRONG thanh topbar thì cũng không đụng
+                            if (el.closest && el.closest('#topbar, .topbar, ytm-mobile-topbar-renderer, ytm-topbar-menu-button-renderer')) return true;
                         } catch(e) {}
                         return false;
                     }
