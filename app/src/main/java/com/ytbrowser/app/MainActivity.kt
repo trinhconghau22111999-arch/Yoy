@@ -67,6 +67,9 @@ class MainActivity : AppCompatActivity() {
     // Đây chính là lý do trước đây gặp kiểu lỗi "tắt màn hình lần đầu thì được, lần sau lại không
     // phát tiếp" - xác suất trúng khoảng hở đó khác nhau mỗi lần, không phải lần nào cũng dính.
     private var isAutoPausing = false
+    // Tăng dần mỗi lần onPause() bắt đầu 1 chuỗi tự pause/play mới - xem giải thích chi tiết ở
+    // attemptAutoResume() bên dưới (chống 2 chuỗi từ 2 lần tắt màn hình gần nhau giẫm chân nhau).
+    private var resumeGeneration = 0
     // Cấu hình chuỗi "tự play() lại" ở onPause() bên dưới: chờ RESUME_FIRST_DELAY_MS (mốc gốc
     // đã kiểm chứng chạy ổn) rồi gọi play() lần đầu; SAU ĐÓ đợi thêm RESUME_SETTLE_CHECK_MS mới
     // kiểm tra video.paused - KHÔNG kiểm tra ngay trong cùng 1 lệnh với play() vì theo chuẩn
@@ -570,11 +573,19 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         if (isVideoPlaying) {
             isAutoPausing = true
+            // "Mã thế hệ" của chuỗi tự pause/play lần này - xem giải thích ở attemptAutoResume():
+            // dùng để chuỗi CŨ (từ lần tắt màn hình trước, có thể vẫn còn 1 callback JS bất đồng
+            // bộ đang bay dở dang) tự nhận ra mình đã bị thay bằng chuỗi MỚI này và im lặng dừng
+            // lại, không giẫm chân/tắt nhầm isAutoPausing của chuỗi mới.
+            resumeGeneration++
+            val myGeneration = resumeGeneration
             webView.evaluateJavascript(
                 "(function(){var v=document.querySelector('video'); if(v) v.pause();})();", null
             )
             resumePlaybackHandler.removeCallbacksAndMessages(null)
-            resumePlaybackHandler.postDelayed({ attemptAutoResume(attempt = 1) }, RESUME_FIRST_DELAY_MS)
+            resumePlaybackHandler.postDelayed(
+                { attemptAutoResume(attempt = 1, generation = myGeneration) }, RESUME_FIRST_DELAY_MS
+            )
         }
     }
 
@@ -582,8 +593,18 @@ class MainActivity : AppCompatActivity() {
      *  (1) gọi play(), (2) đợi RESUME_SETTLE_CHECK_MS rồi mới đọc lại video.paused - không đọc
      *  ngay trong cùng lệnh với play() vì paused fix về false đồng bộ ngay khi gọi play() dù
      *  giải mã có thành công hay không (xem giải thích ở khai báo RESUME_* phía trên). Nếu sau
-     *  khi đợi thật mà vẫn đang paused (trúng khoảng hở Android thu hồi Surface) thì thử lại. */
-    private fun attemptAutoResume(attempt: Int) {
+     *  khi đợi thật mà vẫn đang paused (trúng khoảng hở Android thu hồi Surface) thì thử lại.
+     *
+     *  [generation] chống chồng lấn khi 2 lần tắt màn hình xảy ra gần nhau: onPause() lần sau
+     *  gọi removeCallbacksAndMessages() để huỷ chuỗi cũ, nhưng lệnh đó chỉ huỷ được các bước
+     *  ĐANG CHỜ HẸN GIỜ - không huỷ được 1 callback evaluateJavascript() đã gửi đi và đang bay
+     *  dở dang bất đồng bộ. Nếu không kiểm tra generation, callback cũ trả về trễ có thể tắt
+     *  isAutoPausing đúng lúc chuỗi MỚI đang cần bảo vệ nhất. Mọi điểm có thể ảnh hưởng tới
+     *  isAutoPausing/lịch hẹn giờ đều tự kiểm tra "mình có còn là chuỗi mới nhất không" trước
+     *  khi làm gì, kể cả sau khi đợi JS trả lời (đợi càng lâu, càng dễ bị 1 lần tắt màn hình mới
+     *  hơn tiếp quản ở giữa chừng). */
+    private fun attemptAutoResume(attempt: Int, generation: Int) {
+        if (generation != resumeGeneration) return // đã có chuỗi mới hơn tiếp quản - im lặng dừng
         // Đánh thức WebView trước khi play lại - JS đơn thuần không đánh thức được
         webView.onResume()
         webView.resumeTimers()
@@ -591,14 +612,16 @@ class MainActivity : AppCompatActivity() {
             "(function(){var v=document.querySelector('video'); if(v) v.play();})();", null
         )
         resumePlaybackHandler.postDelayed({
+            if (generation != resumeGeneration) return@postDelayed
             webView.evaluateJavascript(
                 "(function(){var v=document.querySelector('video'); " +
                     "return (v && v.paused) ? 'paused' : 'playing';})();"
             ) { rawResult ->
+                if (generation != resumeGeneration) return@evaluateJavascript
                 val result = rawResult?.trim('"')
                 if (result == "paused" && attempt < RESUME_MAX_ATTEMPTS) {
                     resumePlaybackHandler.postDelayed(
-                        { attemptAutoResume(attempt + 1) }, RESUME_RETRY_INTERVAL_MS
+                        { attemptAutoResume(attempt + 1, generation) }, RESUME_RETRY_INTERVAL_MS
                     )
                 } else {
                     // Đã phát lại được thật (kiểm tra sau khi đợi đủ lâu), hoặc đã hết số lần
