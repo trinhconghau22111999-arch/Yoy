@@ -581,8 +581,20 @@ class MainActivity : AppCompatActivity() {
 
                     // Nút mở app đôi khi không có text match được nhưng trỏ tới app store / deep link
                     document.querySelectorAll('a[href*="play.google.com"], a[href*="apps.apple.com"], a[href^="youtube://"], a[href*="ddl.gg"]').forEach(function(el) {
-                        var container = el.closest('div,button,ytm-button-renderer,tp-yt-paper-button') || el;
-                        container.style.display = 'none';
+                        // SUA LOI (nguoi dung phan anh: "icon kinh lup bi che/an" - loi CU tai
+                        // xuat hien): TRUOC DAY dung "el.closest('div,button,...')" - RAT RONG,
+                        // "div" la the HTML pho bien nhat nen closest() thuong dung lai ngay o
+                        // CHA GAN NHAT, nhung neu link "mo app" nay va icon tim kiem tinh co la
+                        // 2 ANH EM CUNG 1 CHA (vd deu nam trong cung 1 thanh topbar YouTube) thi
+                        // an het CA CHA se an luon ca icon tim kiem theo - dung y het loi da tung
+                        // sua o vong lap ben tren (BANNER_TEXT) nhung CHUA duoc ap dung cho vong
+                        // lap nay. GIO DAY: ap dung CHINH XAC cung 1 quy tac an toan - CHi leo len
+                        // container THAT SU la banner/promo/mealbar, VA chi an ca container do neu
+                        // no du NHO (toi da 6 phan tu con) - neu khong, CHi an dung phan tu <a> da
+                        // khop, khong dung lieu lam anh huong ca cum cha chua no.
+                        var container = el.closest('[class*="banner"],[class*="promo"],[class*="mealbar"]');
+                        var target = (container && container.children && container.children.length <= 6) ? container : el;
+                        target.style.display = 'none';
                     });
                 }
 
