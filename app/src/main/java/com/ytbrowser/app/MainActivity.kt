@@ -287,7 +287,6 @@ class MainActivity : AppCompatActivity() {
                 injectSpeedMemory()
                 injectVoiceSearchBridge()
                 injectBackgroundPlaybackFix()
-                injectHideFullscreenExtraButtons()
                 injectBackgroundColor()
                 injectHomeLogoRestartHook()
             }
@@ -924,71 +923,7 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    private fun injectHideFullscreenExtraButtons() {
-        val js = """
-            (function() {
-                if (window.__ytbrowser_hide_fs_buttons) return;
-                window.__ytbrowser_hide_fs_buttons = true;
 
-                var HIDE_LABELS = [
-                    'settings', 'cài đặt', 'cai dat',
-                    'subtitles', 'closed captions', 'captions', 'phụ đề', 'phu de', 'cc',
-                    'loop', 'lặp lại', 'lap lai'
-                ];
-                var FALLBACK_SELECTORS = [
-                    '.ytp-settings-button', '.ytp-subtitles-button', '.ytp-loop-button',
-                    '.ytp-cards-button'
-                ];
-
-                function textOf(el) {
-                    return (
-                        (el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')
-                    ).toLowerCase();
-                }
-                function matchesAny(text, patterns) {
-                    for (var i = 0; i < patterns.length; i++) {
-                        if (text.indexOf(patterns[i]) !== -1) return true;
-                    }
-                    return false;
-                }
-
-                function applyHiding() {
-                    var player = document.querySelector('.html5-video-player.ytp-fullscreen, [class*="html5-video-player"].ytp-fullscreen');
-                    // KHÔNG đang toàn màn hình -> đảm bảo các nút này vẫn hiện bình thường như
-                    // cũ (phòng trường hợp thoát fullscreen ngay sau khi vừa ẩn).
-                    if (!player) {
-                        FALLBACK_SELECTORS.forEach(function(sel) {
-                            document.querySelectorAll(sel).forEach(function(el) {
-                                if (el.__ytbrowser_fs_hidden) {
-                                    el.style.display = '';
-                                    el.__ytbrowser_fs_hidden = false;
-                                }
-                            });
-                        });
-                        return;
-                    }
-
-                    function hideEl(el) {
-                        el.style.display = 'none';
-                        el.__ytbrowser_fs_hidden = true;
-                    }
-
-                    FALLBACK_SELECTORS.forEach(function(sel) {
-                        player.querySelectorAll(sel).forEach(hideEl);
-                    });
-                    player.querySelectorAll('button,[role="button"]').forEach(function(el) {
-                        if (matchesAny(textOf(el), HIDE_LABELS)) hideEl(el);
-                    });
-                }
-
-                applyHiding();
-                setInterval(applyHiding, 200);
-                var mo = new MutationObserver(applyHiding);
-                mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
 
     inner class SpeedBridge {
         @JavascriptInterface        fun saveSpeed(speed: Float) {
