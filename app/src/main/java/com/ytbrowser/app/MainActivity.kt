@@ -24,7 +24,9 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.Toast
+import android.speech.RecognizerIntent
 import androidx.activity.result.contract.ActivityResultContracts
+import java.util.Locale
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
