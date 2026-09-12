@@ -607,12 +607,40 @@ class MainActivity : AppCompatActivity() {
 
                     var player = document.querySelector('.html5-video-player, [class*="html5-video-player"]');
                     var isAd = player && /ad-showing|ad-interrupting/.test(player.className || '');
-                    if (isAd) {
-                        var video = document.querySelector('video');
-                        if (video && video.duration && isFinite(video.duration)) {
-                            try { video.currentTime = video.duration; } catch(e) {}
+                    var video = document.querySelector('video');
+
+                    if (isAd && video) {
+                        // SUA LOI (nguoi dung phan anh: "khong chan duoc 2 quang cao lien
+                        // tiep, chi chan duoc 1 cai"): TRUOC DAY chi cam tieng (muted=true)
+                        // SAU KHI da seek duoc toi cuoi video (tuc CHi khi video.duration da
+                        // co gia tri hop le) - nhung quang cao THU 2 tro di trong 1 chuoi
+                        // quang cao lien tuc thuong duoc nap gan nhu NGAY LAP TUC sau khi
+                        // quang cao truoc bi ep nhay qua, luc do <video> RAT CO THE CHUA KIP
+                        // co duration hop le (con NaN/Infinity trong vai chuc/vai tram ms dau
+                        // khi dang tai) - dieu kien "isFinite(video.duration)" THAT BAI ngay
+                        // luc do nen code CU KHONG LAM GI CA (khong cam tieng, khong seek),
+                        // quang cao thu 2 cu the ma phat het nguyen ven truoc khi vong lap
+                        // 150ms sau kip bat duoc trang thai duration da san sang.
+                        //
+                        // GIO DAY: cam tieng NGAY LAP TUC moi khi phat hien dang co quang cao
+                        // (bat ke duration da san sang hay chua) - dam bao it nhat khong con
+                        // nghe thay bat ky quang cao nao (kể cả cai thu 2, thu 3...), roi tiep
+                        // tuc seek toi cuoi ngay khi duration co gia tri hop le (co the ngay
+                        // tuc thi, hoac vai tick 150ms sau tuy tung quang cao).
+                        if (!video.muted) {
                             video.muted = true;
+                            video.__ytbrowser_force_muted = true;
                         }
+                        if (video.duration && isFinite(video.duration)) {
+                            try { video.currentTime = video.duration; } catch(e) {}
+                        }
+                    } else if (video && video.__ytbrowser_force_muted) {
+                        // Đã hết quảng cáo (không còn isAd) - trả lại tiếng cho nội dung THẬT,
+                        // tránh video chính bị câm vĩnh viễn sau khi từng ép bỏ qua quảng cáo
+                        // (chỉ trả tiếng nếu CHÍNH đoạn code này là bên đã câm nó, không đụng
+                        // vào nếu người dùng tự tay bấm câm tiếng thật sự).
+                        video.muted = false;
+                        video.__ytbrowser_force_muted = false;
                     }
                 }
 
@@ -635,7 +663,7 @@ class MainActivity : AppCompatActivity() {
                     hideAppBanners();
                     skipAds();
                     attachPlayerObserver();
-                }, 150);
+                }, 100); // Giam tu 150ms xuong 100ms: phan ung nhanh hon giua cac quang cao lien tiep
 
                 var mo = new MutationObserver(function() {
                     hideAppBanners();
