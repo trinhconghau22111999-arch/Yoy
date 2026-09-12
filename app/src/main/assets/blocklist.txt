@@ -72,3 +72,26 @@ chartbeat.com
 admicro.vn
 adtima.vn
 eclick.vn
+
+# ---- Sàn quảng cáo VIDEO (đáng chú ý riêng vì app này chuyên phát video - Google Ad Manager
+#      thường gọi qua các sàn này khi đấu giá quảng cáo video chèn giữa/trước video) ----
+freewheel.tv
+spotxchange.com
+spotx.tv
+tremorhub.com
+innovid.com
+springserve.com
+
+# ---- "Môi giới dữ liệu" (data broker) - ăn theo mỗi lượt đấu giá quảng cáo ở trên để đồng bộ
+#      cookie/dữ liệu người dùng giữa các bên, không phục vụ nội dung nào cho người xem cả ----
+bluekai.com
+rlcdn.com
+tapad.com
+agkn.com
+
+# ---- Pixel theo dõi của nền tảng khác (domain RIÊNG cho quảng cáo/đo lường - không phải domain
+#      chính của các nền tảng đó, nên chặn domain này không ảnh hưởng gì tới link Twitter/Facebook
+#      thật trong mô tả video hay bình luận) ----
+ads-twitter.com
+bat.bing.com
+facebook.net
