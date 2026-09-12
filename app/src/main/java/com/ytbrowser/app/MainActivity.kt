@@ -605,6 +605,14 @@ class MainActivity : AppCompatActivity() {
                     'trải nghiệm trọn vẹn', 'trai nghiem tron ven',
                     'open in app', 'open the app', 'get the app', 'try the app', 'use app'
                 ];
+                // Banner quảng cáo overlay kiểu "được tài trợ" (sponsored overlay trên video)
+                var SPONSORED_SELECTORS = [
+                    '.ytp-ad-overlay-image', '.ytp-ad-overlay-container',
+                    '.ytp-ad-overlay-slot', '[class*="ad-overlay"]',
+                    '.ytp-ad-text-overlay', '.ytp-ad-player-overlay',
+                    'ytm-companion-slot', 'ytm-companion-ad-renderer',
+                    '.video-ads.ytp-ad-module', '[class*="companion"]'
+                ];
 
                 function textOf(el) {
                     return (((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')) + '').toLowerCase();
@@ -624,7 +632,11 @@ class MainActivity : AppCompatActivity() {
                 ];
                 var fallbackSkipSelectors = [
                     '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern',
-                    '.videoAdUiSkipButton', 'button.ytp-ad-skip-button-container'
+                    '.videoAdUiSkipButton', 'button.ytp-ad-skip-button-container',
+                    // Overlay/companion ads - nút "Bỏ qua" dạng banner đè lên video
+                    '.ytp-ad-overlay-close-button', '.ytp-ad-overlay-slot',
+                    '.ytp-ad-button-icon', '[id*="dismiss"]', '[class*="dismiss"]',
+                    '.ytp-ad-skip-button-slot button', '.ytp-skip-ad-button'
                 ];
 
                 function hideAppBanners() {
@@ -658,6 +670,15 @@ class MainActivity : AppCompatActivity() {
                         } catch(e) {}
                         return false;
                     }
+
+                    // Ẩn/xoá overlay ad (banner "được tài trợ" đè lên video)
+                    SPONSORED_SELECTORS.forEach(function(sel) {
+                        try {
+                            document.querySelectorAll(sel).forEach(function(el) {
+                                el.style.display = 'none';
+                            });
+                        } catch(e) {}
+                    });
 
                     fallbackBannerSelectors.forEach(function(sel) {
                         try {
@@ -717,10 +738,17 @@ class MainActivity : AppCompatActivity() {
                         } catch(e) {}
                     });
 
-                    document.querySelectorAll('button,[role="button"]').forEach(function(btn) {
+                    // Quét cả button, div, span, a - vì nút "Bỏ qua" của overlay/companion
+                    // ad đôi khi không phải <button> mà là <div> hoặc <a> có role tuỳ ý.
+                    document.querySelectorAll('button,[role="button"],div[class*="skip"],div[class*="bo-qua"],a[class*="skip"]').forEach(function(btn) {
                         if (matchesAny(textOf(btn), SKIP_TEXT)) {
                             try { btn.click(); } catch(e) {}
                         }
+                    });
+
+                    // Thêm: ẩn hẳn overlay ad container nếu đang hiển thị
+                    document.querySelectorAll('.ytp-ad-overlay-container, .ytp-ad-overlay-slot, [class*="ad-overlay"]').forEach(function(el) {
+                        try { el.style.display = 'none'; } catch(e) {}
                     });
 
                     var player = document.querySelector('.html5-video-player, [class*="html5-video-player"]');
