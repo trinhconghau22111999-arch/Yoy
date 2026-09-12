@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
     // thành công hay không - đọc paused ngay lúc đó gần như luôn báo "đã phát" giả, khiến tắt cờ
     // isAutoPausing quá sớm dù Surface có thể vẫn chưa sẵn sàng, gây mất bảo vệ đúng lúc cần nhất.
     // Nếu sau khi đợi thật mà vẫn paused, thử lại tối đa RESUME_MAX_ATTEMPTS lần.
-    private val RESUME_FIRST_DELAY_MS = 450L
+    private val RESUME_FIRST_DELAY_MS = 200L
     private val RESUME_SETTLE_CHECK_MS = 250L
     private val RESUME_RETRY_INTERVAL_MS = 400L
     private val RESUME_MAX_ATTEMPTS = 8 // ~450ms + 8*(250+400)ms = tối đa khoảng 5.65 giây dò lại -
