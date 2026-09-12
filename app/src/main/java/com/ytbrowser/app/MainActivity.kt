@@ -77,7 +77,10 @@ class MainActivity : AppCompatActivity() {
     private val RESUME_FIRST_DELAY_MS = 450L
     private val RESUME_SETTLE_CHECK_MS = 250L
     private val RESUME_RETRY_INTERVAL_MS = 400L
-    private val RESUME_MAX_ATTEMPTS = 4 // ~450ms + 4*(250+400)ms = tối đa khoảng 3 giây dò lại
+    private val RESUME_MAX_ATTEMPTS = 8 // ~450ms + 8*(250+400)ms = tối đa khoảng 5.65 giây dò lại -
+    // tăng từ 4 lên 8 lần vì vẫn còn ca "tắt màn hình xong nhạc đứng luôn, không tự chạy lại" dù
+    // đã sửa xong lỗi đọc paused giả - phần còn sót lại là do khoảng hở Android thu hồi Surface
+    // xảy ra muộn hơn cửa sổ dò cũ (~3 giây), kéo dài cửa sổ dò để vớt thêm các ca muộn đó.
 
     // --- Hỗ trợ fullscreen cho video HTML5 (nút phóng to trong trình phát YouTube) ---
     private var fullscreenContainer: FrameLayout? = null
