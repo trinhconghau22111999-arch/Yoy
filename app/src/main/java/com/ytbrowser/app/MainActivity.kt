@@ -242,6 +242,7 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(SpeedBridge(), "AndroidSpeed")
         webView.addJavascriptInterface(VoiceBridge(), "AndroidVoice")
         webView.addJavascriptInterface(WakeLockBridge(), "AndroidWakeLock")
+        webView.addJavascriptInterface(NavBridge(), "AndroidNav")
 
         webView.webViewClient = object : WebViewClient() {
 
@@ -288,6 +289,7 @@ class MainActivity : AppCompatActivity() {
                 injectBackgroundPlaybackFix()
                 injectHideFullscreenExtraButtons()
                 injectBackgroundColor()
+                injectHomeLogoRestartHook()
             }
         }
 
@@ -297,8 +299,7 @@ class MainActivity : AppCompatActivity() {
                     webView.webChromeClient?.onHideCustomView()
                     true
                 } else if (webView.canGoBack()) {
-                    webView.goBack()
-                    true
+                    handleBackToPossibleHome()
                 } else false
             } else false
         }
@@ -462,13 +463,94 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
+    // Khởi động lại TOÀN BỘ app từ đầu - y hệt vừa mở app lần đầu (dọn sạch mọi trạng thái
+    // runtime: trang WebView đang ở đâu, video đang phát, wake lock, Foreground Service, các
+    // biến cờ isVideoPlaying/isAutoPausing...) - dùng khi quay lại (back) trang chủ YouTube
+    // hoặc bấm logo YouTube góc trái trên để về trang chủ (xem isYoutubeHomeUrl() + NavBridge
+    // bên dưới). KHÔNG dùng recreate()/webView.reload() đơn thuần vì chỉ tải lại trang web,
+    // không dọn sạch Foreground Service/WakeLock/Activity đang chạy - phải khởi động lại cả
+    // tiến trình (kill hẳn process cũ sau khi mở Activity mới) mới thật sự "như mới mở app".
+    private fun restartAppFresh() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        startActivity(intent)
+        finish()
+        Runtime.getRuntime().exit(0)
+    }
+
+    // Kiểm tra 1 URL có PHẢI LÀ trang chủ YouTube hay không (path rỗng hoặc "/", bỏ qua mọi
+    // trang con như /watch, /results, /feed/...) - dùng để phát hiện lúc bấm BACK lùi về đúng
+    // trang chủ (xem setOnKeyListener/onBackPressed bên dưới).
+    private fun isYoutubeHomeUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        return try {
+            val uri = Uri.parse(url)
+            val host = uri.host ?: return false
+            val hostIsYoutube = host == "www.youtube.com" || host == "m.youtube.com" || host == "youtube.com"
+            val path = uri.path ?: ""
+            hostIsYoutube && (path.isEmpty() || path == "/")
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Bấm BACK mà mục tiêu lùi về (mục ngay trước trong lịch sử WebView) là trang chủ YouTube
+    // -> khởi động lại app từ đầu thay vì chỉ webView.goBack() bình thường (yêu cầu: về trang
+    // chủ = load lại toàn bộ app y như mới mở).
+    private fun handleBackToPossibleHome(): Boolean {
+        val list = webView.copyBackForwardList()
+        val prevIndex = list.currentIndex - 1
+        val prevUrl = if (prevIndex >= 0) list.getItemAtIndex(prevIndex)?.url else null
+        if (isYoutubeHomeUrl(prevUrl)) {
+            restartAppFresh()
+            return true
+        }
+        webView.goBack()
+        return true
+    }
+
+    // Cầu nối JS<->Android cho việc bấm logo YouTube (góc trái trên) - xem
+    // injectHomeLogoRestartHook() bên dưới để biết JS phía nào gọi vào đây.
+    inner class NavBridge {
+        @JavascriptInterface
+        fun homeLogoClicked() {
+            runOnUiThread { restartAppFresh() }
+        }
+    }
+
+    // Bấm thẳng vào logo YouTube (ytm-topbar-logo-renderer, góc trái thanh trên cùng) để về
+    // trang chủ -> khởi động lại app từ đầu, y như yêu cầu ở handleBackToPossibleHome() phía
+    // trên. Dùng delegated click listener bắt ở giai đoạn CAPTURE trên document (chặn trước khi
+    // SPA của YouTube kịp tự điều hướng nội bộ) - không cần MutationObserver rebind vì
+    // delegation tự bắt được cả phần tử được thêm sau này.
+    private fun injectHomeLogoRestartHook() {
+        val js = """
+            (function() {
+                if (window.__ytbrowser_home_restart_hook) return;
+                window.__ytbrowser_home_restart_hook = true;
+
+                document.addEventListener('click', function(ev) {
+                    var logo = ev.target && ev.target.closest && ev.target.closest('ytm-topbar-logo-renderer');
+                    if (!logo) return;
+                    if (window.AndroidNav) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        window.AndroidNav.homeLogoClicked();
+                    }
+                }, true);
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     override fun onBackPressed() {
         if (fullscreenView != null) {
             webView.webChromeClient?.onHideCustomView()
             return
         }
         if (webView.canGoBack()) {
-            webView.goBack()
+            handleBackToPossibleHome()
             return
         }
         super.onBackPressed()
