@@ -67,13 +67,17 @@ class MainActivity : AppCompatActivity() {
     // Đây chính là lý do trước đây gặp kiểu lỗi "tắt màn hình lần đầu thì được, lần sau lại không
     // phát tiếp" - xác suất trúng khoảng hở đó khác nhau mỗi lần, không phải lần nào cũng dính.
     private var isAutoPausing = false
-    // Cấu hình chuỗi "tự play() lại" ở onPause() bên dưới: chờ RESUME_FIRST_DELAY_MS rồi thử
-    // play() lần đầu; nếu video vẫn đang paused (trúng đúng khoảng hở nói trên), thử lại mỗi
-    // RESUME_RETRY_INTERVAL_MS, tối đa RESUME_MAX_ATTEMPTS lần - thay vì bắn đúng 1 phát rồi
-    // thôi như trước, để lỡ lần đầu chưa trúng thì các lần sau vẫn có cơ hội vớt lại.
-    private val RESUME_FIRST_DELAY_MS = 150L
-    private val RESUME_RETRY_INTERVAL_MS = 200L
-    private val RESUME_MAX_ATTEMPTS = 6 // ~150ms + 6*200ms = tối đa khoảng 1.35 giây dò lại
+    // Cấu hình chuỗi "tự play() lại" ở onPause() bên dưới: chờ RESUME_FIRST_DELAY_MS (mốc gốc
+    // đã kiểm chứng chạy ổn) rồi gọi play() lần đầu; SAU ĐÓ đợi thêm RESUME_SETTLE_CHECK_MS mới
+    // kiểm tra video.paused - KHÔNG kiểm tra ngay trong cùng 1 lệnh với play() vì theo chuẩn
+    // HTML5, .paused được đặt về false NGAY LẬP TỨC khi gọi .play() bất kể giải mã có thật sự
+    // thành công hay không - đọc paused ngay lúc đó gần như luôn báo "đã phát" giả, khiến tắt cờ
+    // isAutoPausing quá sớm dù Surface có thể vẫn chưa sẵn sàng, gây mất bảo vệ đúng lúc cần nhất.
+    // Nếu sau khi đợi thật mà vẫn paused, thử lại tối đa RESUME_MAX_ATTEMPTS lần.
+    private val RESUME_FIRST_DELAY_MS = 450L
+    private val RESUME_SETTLE_CHECK_MS = 250L
+    private val RESUME_RETRY_INTERVAL_MS = 400L
+    private val RESUME_MAX_ATTEMPTS = 4 // ~450ms + 4*(250+400)ms = tối đa khoảng 3 giây dò lại
 
     // --- Hỗ trợ fullscreen cho video HTML5 (nút phóng to trong trình phát YouTube) ---
     private var fullscreenContainer: FrameLayout? = null
@@ -571,28 +575,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Thử phát lại sau khi tự pause() ở onPause() - kiểm tra luôn video có THẬT SỰ đang chạy
-     *  không sau lệnh play(); nếu vẫn đang paused (trúng đúng khoảng hở Android thu hồi Surface,
-     *  xem comment ở isAutoPausing phía trên) thì dò lại thêm vài lần thay vì bắn 1 phát rồi bỏ. */
+    /** Thử phát lại sau khi tự pause() ở onPause(). Chia làm 2 bước CÁCH NHAU MỘT NHỊP THẬT:
+     *  (1) gọi play(), (2) đợi RESUME_SETTLE_CHECK_MS rồi mới đọc lại video.paused - không đọc
+     *  ngay trong cùng lệnh với play() vì paused fix về false đồng bộ ngay khi gọi play() dù
+     *  giải mã có thành công hay không (xem giải thích ở khai báo RESUME_* phía trên). Nếu sau
+     *  khi đợi thật mà vẫn đang paused (trúng khoảng hở Android thu hồi Surface) thì thử lại. */
     private fun attemptAutoResume(attempt: Int) {
         // Đánh thức WebView trước khi play lại - JS đơn thuần không đánh thức được
         webView.onResume()
         webView.resumeTimers()
         webView.evaluateJavascript(
-            "(function(){var v=document.querySelector('video'); if(!v) return 'novideo'; " +
-                "v.play(); return v.paused ? 'paused' : 'playing';})();"
-        ) { rawResult ->
-            val result = rawResult?.trim('"')
-            if (result != "playing" && attempt < RESUME_MAX_ATTEMPTS) {
-                resumePlaybackHandler.postDelayed(
-                    { attemptAutoResume(attempt + 1) }, RESUME_RETRY_INTERVAL_MS
-                )
-            } else {
-                // Đã phát lại được, hoặc đã hết số lần thử - kết thúc chuỗi tự pause/play, trả
-                // quyền xử lý pause/release wake lock thật lại cho WakeLockBridge như bình thường.
-                isAutoPausing = false
+            "(function(){var v=document.querySelector('video'); if(v) v.play();})();", null
+        )
+        resumePlaybackHandler.postDelayed({
+            webView.evaluateJavascript(
+                "(function(){var v=document.querySelector('video'); " +
+                    "return (v && v.paused) ? 'paused' : 'playing';})();"
+            ) { rawResult ->
+                val result = rawResult?.trim('"')
+                if (result == "paused" && attempt < RESUME_MAX_ATTEMPTS) {
+                    resumePlaybackHandler.postDelayed(
+                        { attemptAutoResume(attempt + 1) }, RESUME_RETRY_INTERVAL_MS
+                    )
+                } else {
+                    // Đã phát lại được thật (kiểm tra sau khi đợi đủ lâu), hoặc đã hết số lần
+                    // thử - kết thúc chuỗi tự pause/play, trả quyền xử lý pause/release wake
+                    // lock thật lại cho WakeLockBridge như bình thường.
+                    isAutoPausing = false
+                }
             }
-        }
+        }, RESUME_SETTLE_CHECK_MS)
     }
 
     override fun onDestroy() {
