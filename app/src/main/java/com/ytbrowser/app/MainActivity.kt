@@ -1,21 +1,16 @@
 package com.ytbrowser.app
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.ActivityInfo
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
-import android.speech.RecognizerIntent
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
@@ -30,8 +25,9 @@ import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -70,39 +66,6 @@ class MainActivity : AppCompatActivity() {
     // phát tiếp" - xác suất trúng khoảng hở đó khác nhau mỗi lần, không phải lần nào cũng dính.
     private var isAutoPausing = false
 
-    // Nhận lệnh điều khiển (Phát/Tạm dừng/Lùi/Tới) từ nút bấm trên notification & màn hình
-    // khoá - PlaybackService gửi broadcast này về, ở đây chỉ việc chạy JS lên đúng <video>
-    // thật đang phát trong WebView (video không hề nằm trong Service).
-    private val playbackControlReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val command = intent.getStringExtra(PlaybackService.EXTRA_COMMAND) ?: return
-            controlVideoPlayback(command)
-        }
-    }
-
-    private fun controlVideoPlayback(command: String) {
-        // SỬA LỖI (bấm "Phát" từ màn hình khoá không có tác dụng): nếu WebView đã bị hệ thống
-        // tạm "treo" (suspend) do màn hình tắt lâu/app ra nền lâu, gửi thẳng evaluateJavascript()
-        // xuống có thể không "đánh thức" được engine để lệnh thực thi. Gọi onResume()/
-        // resumeTimers() ngay trước đó để đảm bảo chắc chắn WebView đang ở trạng thái hoạt động
-        // trước khi gửi lệnh - an toàn để gọi dù WebView đang bình thường (không gây tác dụng phụ
-        // gì nếu nó vốn đã resumed sẵn).
-        webView.onResume()
-        webView.resumeTimers()
-        val js = when (command) {
-            PlaybackService.COMMAND_PLAY ->
-                "(function(){var v=document.querySelector('video'); if(v) v.play();})();"
-            PlaybackService.COMMAND_PAUSE ->
-                "(function(){var v=document.querySelector('video'); if(v) v.pause();})();"
-            PlaybackService.COMMAND_SEEK_FORWARD ->
-                "(function(){var v=document.querySelector('video'); if(v) v.currentTime=Math.min((v.duration||1e9), v.currentTime+10);})();"
-            PlaybackService.COMMAND_SEEK_BACKWARD ->
-                "(function(){var v=document.querySelector('video'); if(v) v.currentTime=Math.max(0, v.currentTime-10);})();"
-            else -> return
-        }
-        webView.evaluateJavascript(js, null)
-    }
-
     // --- Hỗ trợ fullscreen cho video HTML5 (nút phóng to trong trình phát YouTube) ---
     private var fullscreenContainer: FrameLayout? = null
     private var fullscreenView: View? = null
@@ -139,11 +102,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* Không có thông báo thì Foreground Service vẫn chạy được, chỉ là không hiện icon -
-           không chặn tính năng, nên không cần xử lý gì thêm khi bị từ chối. */ }
-
     // Danh sách domain cần chặn, đọc từ assets/blocklist.txt
     private val blockedHosts: MutableSet<String> = HashSet()
 
@@ -172,20 +130,6 @@ class MainActivity : AppCompatActivity() {
 
         loadBlocklist()
         setupWebView()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        ContextCompat.registerReceiver(
-            this,
-            playbackControlReceiver,
-            IntentFilter(PlaybackService.ACTION_CONTROL),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
 
         webView.loadUrl(START_URL)
     }
@@ -606,10 +550,6 @@ class MainActivity : AppCompatActivity() {
         super.onBackPressed()
     }
 
-    // Bấm Home/tắt màn hình lúc đang phát: gọi pause() trước (đưa engine về đúng trạng thái
-    // "đã dừng" sạch sẽ ngay lúc app vừa ra nền), CHỜ 0,45 GIÂY, rồi tự gọi play() lại (qua
-    // controlVideoPlayback() - đã gộp sẵn onResume()/resumeTimers() để đánh thức WebView trước
-    // khi phát, JS đơn thuần không đánh thức được).
     override fun onPause() {
         super.onPause()
         if (isVideoPlaying) {
@@ -617,14 +557,14 @@ class MainActivity : AppCompatActivity() {
             webView.evaluateJavascript(
                 "(function(){var v=document.querySelector('video'); if(v) v.pause();})();", null
             )
-            // Huỷ lịch hẹn CŨ (nếu có, từ lần onPause() trước chưa kịp chạy) trước khi đặt lịch
-            // MỚI - đảm bảo tại 1 thời điểm chỉ có ĐÚNG 1 lịch hẹn "phát lại" đang chờ.
             resumePlaybackHandler.removeCallbacksAndMessages(null)
             resumePlaybackHandler.postDelayed({
-                controlVideoPlayback(PlaybackService.COMMAND_PLAY)
-                // Hạ cờ NGAY SAU khi đã gọi play() lại - từ đây trở đi, nếu video thật sự dừng
-                // (người dùng bấm pause, video kết thúc, hoặc lệnh play() ở trên vì lý do gì đó
-                // không thành công) thì đó là pause THẬT, release() cần xử lý bình thường trở lại.
+                // Đánh thức WebView trước khi play lại - JS đơn thuần không đánh thức được
+                webView.onResume()
+                webView.resumeTimers()
+                webView.evaluateJavascript(
+                    "(function(){var v=document.querySelector('video'); if(v) v.play();})();", null
+                )
                 isAutoPausing = false
             }, 450L)
         }
@@ -638,7 +578,6 @@ class MainActivity : AppCompatActivity() {
         resumePlaybackHandler.removeCallbacksAndMessages(null)
         playbackServiceRunning = false
         stopService(Intent(this, PlaybackService::class.java))
-        runCatching { unregisterReceiver(playbackControlReceiver) }
         super.onDestroy()
     }
 
@@ -1153,17 +1092,8 @@ class MainActivity : AppCompatActivity() {
                 // đóng băng/kill tiến trình khi tắt màn hình (wake lock riêng lẻ không đủ trên
                 // nhiều máy, đặc biệt các hãng có trình quản lý pin riêng).
                 if (!playbackServiceRunning) {
-                    // Chỉ khởi động 1 LẦN cho mỗi phiên phát - JS gọi acquire() lại mỗi 30 giây
-                    // chỉ để gia hạn wake lock, không cần (và không nên) đăng lại notification
-                    // mỗi lần như vậy.
                     playbackServiceRunning = true
-                    ContextCompat.startForegroundService(
-                        this@MainActivity, Intent(this@MainActivity, PlaybackService::class.java)
-                    )
-                } else {
-                    // Service đã chạy sẵn (vd trước đó đang ở trạng thái tạm dừng) - chỉ cần báo
-                    // lại đang phát để icon nút Phát/Tạm dừng trên notification đổi đúng lại.
-                    sendPlaybackState(isPlaying = true)
+                    startForegroundService(Intent(this@MainActivity, PlaybackService::class.java))
                 }
             }
         }
@@ -1188,22 +1118,9 @@ class MainActivity : AppCompatActivity() {
                     @Suppress("DEPRECATION")
                     window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
                 }
-                // KHÔNG dừng hẳn Service khi chỉ tạm dừng/hết video - giữ nguyên notification
-                // (kèm nút "Phát") để người dùng bấm phát lại ngay từ màn hình khoá mà không
-                // cần mở lại app. Service chỉ thật sự dừng khi Activity bị đóng hẳn (onDestroy).
-                if (playbackServiceRunning) {
-                    sendPlaybackState(isPlaying = false)
-                }
+
             }
         }
 
-        private fun sendPlaybackState(isPlaying: Boolean) {
-            startService(
-                Intent(this@MainActivity, PlaybackService::class.java).apply {
-                    action = PlaybackService.ACTION_UPDATE_STATE
-                    putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
-                }
-            )
-        }
     }
 }
