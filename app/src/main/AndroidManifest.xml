@@ -54,11 +54,7 @@
             android:name=".PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback">
-            <!-- Cần để các nút điều khiển (lùi/phát/tạm dừng/tới) trên notification & màn hình
-                 khoá tìm đúng được Service này để gửi lệnh tới (qua MediaButtonReceiver). -->
-            <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON" />
-            </intent-filter>
+
         </service>
     </application>
 </manifest>
