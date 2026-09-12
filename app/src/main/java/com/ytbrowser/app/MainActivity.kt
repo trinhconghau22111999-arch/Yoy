@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
@@ -149,8 +150,30 @@ class MainActivity : AppCompatActivity() {
 
         loadBlocklist()
         setupWebView()
+        requestIgnoreBatteryOptimizationsIfNeeded()
 
         webView.loadUrl(START_URL)
+    }
+
+    /** Xin đưa app vào danh sách "không tối ưu hoá pin" của hệ thống - dù đã có Foreground
+     *  Service + wake lock, nhiều hãng máy (Xiaomi/Oppo/Vivo/Samsung...) vẫn tự ý đóng băng/kill
+     *  tiến trình app khi tắt màn hình nếu app không nằm trong whitelist pin riêng của hãng. Đây
+     *  là nguyên nhân KHÔNG THỂ sửa bằng code phát lại (onPause()/attemptAutoResume() ở trên) -
+     *  1 khi tiến trình đã bị đóng băng/kill thật thì không còn gì chạy được nữa để mà dò lại.
+     *  Hộp thoại này chỉ 1 chạm để cấp quyền, không cần xin runtime permission thông thường. */
+    private fun requestIgnoreBatteryOptimizationsIfNeeded() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                })
+            } catch (e: Exception) {
+                // Một số hãng máy tuỳ biến ROM chặn/không hỗ trợ intent hệ thống này - bỏ qua,
+                // không làm app crash vì 1 tính năng phụ trợ.
+                Log.e("YTBrowser", "Khong mo duoc hop thoai xin mien toi uu pin", e)
+            }
+        }
     }
 
     private fun loadBlocklist() {
