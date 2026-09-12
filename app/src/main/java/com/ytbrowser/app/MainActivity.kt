@@ -666,12 +666,9 @@ class MainActivity : AppCompatActivity() {
                         if (!el) return false;
                         try {
                             if (el.matches && el.matches(PROTECTED_SELECTORS)) return true;
-                            // Chỉ bảo vệ khi el THẬT SỰ CHỨA BÊN TRONG 1 icon tìm kiếm/logo/menu -
-                            // KHÔNG bảo vệ chỉ vì el nằm đâu đó bên trong thanh topbar nói chung (lớp
-                            // "el.closest(topbar)" cũ quá tay, tự bảo vệ luôn CẢ banner "Mở ứng dụng"
-                            // dù banner này không hề chứa icon nào cần bảo vệ - khiến nút không bao
-                            // giờ ẩn được dù đã khớp đúng BANNER_TEXT).
                             if (el.querySelector && el.querySelector(PROTECTED_SELECTORS)) return true;
+                            // Bảo vệ thêm: nếu el nằm BÊN TRONG thanh topbar thì cũng không đụng
+                            if (el.closest && el.closest('#topbar, .topbar, ytm-mobile-topbar-renderer, ytm-topbar-menu-button-renderer')) return true;
                         } catch(e) {}
                         return false;
                     }
