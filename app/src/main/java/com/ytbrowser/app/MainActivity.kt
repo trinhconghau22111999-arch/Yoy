@@ -67,6 +67,13 @@ class MainActivity : AppCompatActivity() {
     // Đây chính là lý do trước đây gặp kiểu lỗi "tắt màn hình lần đầu thì được, lần sau lại không
     // phát tiếp" - xác suất trúng khoảng hở đó khác nhau mỗi lần, không phải lần nào cũng dính.
     private var isAutoPausing = false
+    // Cấu hình chuỗi "tự play() lại" ở onPause() bên dưới: chờ RESUME_FIRST_DELAY_MS rồi thử
+    // play() lần đầu; nếu video vẫn đang paused (trúng đúng khoảng hở nói trên), thử lại mỗi
+    // RESUME_RETRY_INTERVAL_MS, tối đa RESUME_MAX_ATTEMPTS lần - thay vì bắn đúng 1 phát rồi
+    // thôi như trước, để lỡ lần đầu chưa trúng thì các lần sau vẫn có cơ hội vớt lại.
+    private val RESUME_FIRST_DELAY_MS = 150L
+    private val RESUME_RETRY_INTERVAL_MS = 200L
+    private val RESUME_MAX_ATTEMPTS = 6 // ~150ms + 6*200ms = tối đa khoảng 1.35 giây dò lại
 
     // --- Hỗ trợ fullscreen cho video HTML5 (nút phóng to trong trình phát YouTube) ---
     private var fullscreenContainer: FrameLayout? = null
@@ -560,15 +567,31 @@ class MainActivity : AppCompatActivity() {
                 "(function(){var v=document.querySelector('video'); if(v) v.pause();})();", null
             )
             resumePlaybackHandler.removeCallbacksAndMessages(null)
-            resumePlaybackHandler.postDelayed({
-                // Đánh thức WebView trước khi play lại - JS đơn thuần không đánh thức được
-                webView.onResume()
-                webView.resumeTimers()
-                webView.evaluateJavascript(
-                    "(function(){var v=document.querySelector('video'); if(v) v.play();})();", null
+            resumePlaybackHandler.postDelayed({ attemptAutoResume(attempt = 1) }, RESUME_FIRST_DELAY_MS)
+        }
+    }
+
+    /** Thử phát lại sau khi tự pause() ở onPause() - kiểm tra luôn video có THẬT SỰ đang chạy
+     *  không sau lệnh play(); nếu vẫn đang paused (trúng đúng khoảng hở Android thu hồi Surface,
+     *  xem comment ở isAutoPausing phía trên) thì dò lại thêm vài lần thay vì bắn 1 phát rồi bỏ. */
+    private fun attemptAutoResume(attempt: Int) {
+        // Đánh thức WebView trước khi play lại - JS đơn thuần không đánh thức được
+        webView.onResume()
+        webView.resumeTimers()
+        webView.evaluateJavascript(
+            "(function(){var v=document.querySelector('video'); if(!v) return 'novideo'; " +
+                "v.play(); return v.paused ? 'paused' : 'playing';})();"
+        ) { rawResult ->
+            val result = rawResult?.trim('"')
+            if (result != "playing" && attempt < RESUME_MAX_ATTEMPTS) {
+                resumePlaybackHandler.postDelayed(
+                    { attemptAutoResume(attempt + 1) }, RESUME_RETRY_INTERVAL_MS
                 )
+            } else {
+                // Đã phát lại được, hoặc đã hết số lần thử - kết thúc chuỗi tự pause/play, trả
+                // quyền xử lý pause/release wake lock thật lại cho WakeLockBridge như bình thường.
                 isAutoPausing = false
-            }, 450L)
+            }
         }
     }
 
