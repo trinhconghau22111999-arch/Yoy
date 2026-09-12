@@ -8,6 +8,12 @@
 
 # ---- Hệ sinh thái quảng cáo Google (nguồn chính của toàn bộ quảng cáo trong YouTube,
 #      gồm cả quảng cáo phát trong video LẪN thẻ "Được tài trợ" nằm trong feed/iframe) ----
+# adservice.google.com.vn: biến thể theo vùng (.com.vn) của adservice.google.com - Google phục
+#   vụ quảng cáo theo domain riêng cho từng khu vực/ISP, "adservice.google.com" không tự động
+#   khớp được các biến thể ".com.vn"/".de"/".co.uk"... vì so khớp domain là so khớp CHÍNH XÁC
+#   phần đuôi, không phải theo mẫu - phải liệt kê riêng biến thể nào thật sự gặp.
+# 2mdn.net: CDN chuyên tải phần NỘI DUNG (ảnh/video) của quảng cáo DoubleClick - khác với
+#   doubleclick.net (chỉ lo phần "gọi thầu"/tracking), nên phải chặn riêng.
 doubleclick.net
 googlesyndication.com
 googleadservices.com
@@ -15,10 +21,12 @@ google-analytics.com
 googletagmanager.com
 googletagservices.com
 adservice.google.com
+adservice.google.com.vn
 imasdk.googleapis.com
 app-measurement.com
 googleoptimize.com
 google-analytics.l.google.com
+2mdn.net
 
 # ---- Mạng quảng cáo/theo dõi bên thứ 3 phổ biến (phòng hờ - một số trang/nội dung nhúng
 #      trong mô tả video, bình luận, hoặc quảng cáo hiển thị qua sàn trao đổi quảng cáo mở
@@ -53,6 +61,12 @@ mathtag.com
 demdex.net
 everesttech.net
 flashtalking.com
+# quantserve.com, krxd.net, exelator.com, chartbeat.com: các tracker đo lường/thu thập dữ liệu
+#   phổ biến, thường được kéo vào qua các sàn trao đổi quảng cáo mở giống nhóm domain phía trên.
+quantserve.com
+krxd.net
+exelator.com
+chartbeat.com
 
 # ---- Mạng quảng cáo phổ biến tại Việt Nam ----
 admicro.vn
