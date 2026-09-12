@@ -31,7 +31,6 @@ import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
