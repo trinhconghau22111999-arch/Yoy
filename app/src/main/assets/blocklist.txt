@@ -147,3 +147,60 @@ lzd.co
 tiki.vn
 involve.asia
 accesstrade.vn
+
+# ---- Mạng quảng cáo GAME DI ĐỘNG (rewarded/interstitial video ads) - nhóm này hay xuất hiện
+#      trong quảng cáo game gần đây trên YouTube (thẻ "Được tài trợ" quảng cáo game mobile).
+#      Đã xác minh từng domain là ad network thật (trang chủ chính thức + nhiều nguồn ngành
+#      quảng cáo game độc lập liệt kê chung một nhóm), không suy đoán.
+# pangle.io / pangleglobal.com: Pangle - mạng quảng cáo chính thức của TikTok/ByteDance, rất phổ
+#   biến cho quảng cáo game gần đây (xác nhận qua trang chủ pangleglobal.com của TikTok for Business).
+pangle.io
+pangleglobal.com
+# unity3d.com: hạ tầng Unity Ads (unityads.unity3d.com) - nhiều game mobile dùng engine Unity
+#   tích hợp luôn quảng cáo qua domain này.
+unity3d.com
+ironsrc.com
+supersonicads.com
+vungle.com
+liftoff.io
+chartboost.com
+adcolony.com
+tapjoy.com
+mintegral.com
+rayjump.com
+moloco.com
+startapp.com
+digitalturbine.com
+fyber.com
+mopub.com
+
+# ---- Dò thêm domain quảng cáo/mạng game qua bộ lọc quảng cáo cộng đồng cho người Việt (ABPVN -
+#      https://github.com/abpvn/abpvn, GPLv3) - chỉ lấy các domain là MẠNG quảng cáo/dịch vụ
+#      quảng cáo dùng chung nhiều nơi, KHÔNG lấy domain của các trang nội dung/tin tức/diễn đàn
+#      thật (vd tinhte.vn, voz.vn, dantri.com.vn...) dù chúng có xuất hiện trong file lọc đó,
+#      vì chặn cả domain đó sẽ chặn luôn nội dung thật chứ không chỉ quảng cáo.
+# lavanetwork.net / lavamedia.vn: mạng quảng cáo "Lava" tại Việt Nam (xác nhận qua rule
+#   "pub.lavanetwork.net", "pub.lavamedia.vn" trong ABPVN) - đúng là domain thật đang hoạt động.
+lavanetwork.net
+lavamedia.vn
+adtimaserver.vn
+amcdn.vn
+akadigital.vn
+yomedia.vn
+zmedia.vn
+vlitag.com
+vads.net.vn
+adflex.vn
+adpia.vn
+realclick.vn
+dable.io
+geniee.jp
+adskeeper.co.uk
+yodimedia.com
+bidgear-syndication.com
+v9banners.com
+# qc.coccoc.com / qc.violet.vn: chỉ chặn ĐÚNG subdomain quảng cáo ("qc" = quảng cáo) của trình
+#   duyệt Cốc Cốc và trang Violet - KHÔNG chặn cả coccoc.com/violet.vn vì đó là sản phẩm/trang
+#   nội dung thật, chặn cả domain sẽ ảnh hưởng tới nội dung không phải quảng cáo.
+qc.coccoc.com
+qc.violet.vn
