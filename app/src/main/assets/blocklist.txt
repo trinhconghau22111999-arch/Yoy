@@ -76,6 +76,7 @@ eclick.vn
 # ---- Sàn quảng cáo VIDEO (đáng chú ý riêng vì app này chuyên phát video - Google Ad Manager
 #      thường gọi qua các sàn này khi đấu giá quảng cáo video chèn giữa/trước video) ----
 freewheel.tv
+fwmrm.net
 spotxchange.com
 spotx.tv
 tremorhub.com
@@ -95,6 +96,43 @@ agkn.com
 ads-twitter.com
 bat.bing.com
 facebook.net
+
+# ---- Dò thêm từ danh sách blacklist quảng cáo/tracker cộng đồng (Anudeep's Blacklist) - lọc ra
+#      các domain NỀN TẢNG phổ biến, không phải domain YouTube cần dùng để phát nội dung.
+# 2o7.net, omtrdc.net: tracker đo lường/cá nhân hoá của Adobe (Omniture/Target) - cực kỳ phổ
+#   biến, gắn trên rất nhiều trang dù không liên quan gì tới Adobe.
+# tlnk.io, mobileapptracking.com, measurementapi.com: hạ tầng của TUNE - nền tảng đo lường/
+#   theo dõi link giới thiệu (affiliate) dùng cho quảng cáo di động.
+# kameleoon.com/.eu: công cụ A/B testing hay dùng để đổi nội dung/quảng cáo hiển thị theo từng
+#   người xem. mouseflow.com, appsee.com: công cụ quay lại thao tác người dùng (session replay).
+skimresources.com
+2o7.net
+omtrdc.net
+tribalfusion.com
+kameleoon.com
+kameleoon.eu
+voluumtrk.com
+voluumtrk2.com
+tlnk.io
+mobileapptracking.com
+measurementapi.com
+reporo.net
+mktoresp.com
+webengage.co
+go2affise.com
+domdex.com
+mpstat.us
+bapb.gdn
+adk2x.com
+inmobi.com
+applovin.com
+mouseflow.com
+zedo.com
+smaato.net
+appsee.com
+optimizely.com
+intellitxt.com
+keywordblocks.com
 
 # ---- Sàn thương mại điện tử hay xuất hiện dưới dạng quảng cáo/thẻ "Được tài trợ"/link liên kết
 #      (affiliate) trong feed và mô tả video - CHẶN HẲN CẢ DOMAIN CHÍNH, không chỉ tracker, nên
