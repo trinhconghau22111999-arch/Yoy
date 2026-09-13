@@ -95,3 +95,17 @@ agkn.com
 ads-twitter.com
 bat.bing.com
 facebook.net
+
+# ---- Sàn thương mại điện tử hay xuất hiện dưới dạng quảng cáo/thẻ "Được tài trợ"/link liên kết
+#      (affiliate) trong feed và mô tả video - CHẶN HẲN CẢ DOMAIN CHÍNH, không chỉ tracker, nên
+#      link thật của các sàn này (nếu có trong mô tả video/bình luận) cũng sẽ không mở được nữa.
+shopee.vn
+shopee.com
+shopeemobile.com
+shope.ee
+lazada.vn
+lazada.com
+lzd.co
+tiki.vn
+involve.asia
+accesstrade.vn
