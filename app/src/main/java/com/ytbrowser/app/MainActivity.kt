@@ -15,6 +15,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -24,10 +25,14 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import android.speech.RecognizerIntent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import java.util.Locale
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
@@ -35,6 +40,7 @@ import androidx.appcompat.app.AppCompatActivity
 import java.io.ByteArrayInputStream
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.Collections
 
 class MainActivity : AppCompatActivity() {
 
@@ -138,6 +144,32 @@ class MainActivity : AppCompatActivity() {
 
     private val START_URL = "https://m.youtube.com/"
 
+    // ================== DÒ DOMAIN LẠ TỰ ĐỘNG (bổ sung bộ lọc chặn quảng cáo) ==================
+    // Mỗi khi WebView gặp 1 request/điều hướng tới domain KHÔNG nằm trong allowedHostSuffixes
+    // (chưa được cho phép) và CŨNG KHÔNG nằm trong blockedHosts (chưa từng bị chặn) - tức 1
+    // domain "lạ", ta ghi lại domain đó. Đây thường là các domain quảng cáo/theo dõi MỚI mà
+    // blocklist.txt hiện tại chưa liệt kê. Người dùng vuốt 2 ngón tay theo chiều dọc từ trên
+    // xuống dưới (bất cứ đâu trên màn hình) để mở bảng danh sách này, bấm "Copy" để sao chép rồi
+    // dán gửi lại để bổ sung domain vào blocklist.txt.
+    //
+    // Dùng Set đồng bộ hoá (synchronized) vì shouldInterceptRequest()/shouldOverrideUrlLoading()
+    // của WebViewClient có thể được gọi từ luồng KHÔNG PHẢI luồng chính (theo tài liệu Android),
+    // trong khi bảng hiển thị lại được đọc/xoá từ luồng chính khi người dùng vuốt.
+    private val unknownHosts: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
+    // Giới hạn số domain lạ giữ trong bộ nhớ/SharedPreferences - tránh phình to vô hạn nếu người
+    // dùng lướt rất lâu mà không mở bảng báo cáo để copy & xoá bớt.
+    private val MAX_UNKNOWN_HOSTS = 300
+    private val PREF_UNKNOWN_HOSTS = "unknown_hosts_seen"
+
+    // --- Trạng thái theo dõi cử chỉ 2 ngón vuốt dọc từ trên xuống ---
+    private var twoFingerGestureStartY = 0f
+    private var twoFingerGestureStartX = 0f
+    private var twoFingerGestureActive = false
+    // Khoảng cách tối thiểu phải vuốt XUỐNG (tính theo dp) mới coi là cử chỉ hợp lệ.
+    private val TWO_FINGER_SWIPE_MIN_DISTANCE_DP = 100f
+    // Nếu vuốt CHÉO quá nhiều theo chiều ngang thì không tính là "vuốt dọc" nữa.
+    private val TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP = 90f
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -149,10 +181,149 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
 
         loadBlocklist()
+        restoreUnknownHosts()
         setupWebView()
         requestIgnoreBatteryOptimizationsIfNeeded()
 
         webView.loadUrl(START_URL)
+    }
+
+    // Đọc lại danh sách domain lạ đã ghi nhận từ phiên trước (nếu app bị hệ thống tắt/kill
+    // trước khi người dùng kịp vuốt xem báo cáo, dữ liệu vẫn không bị mất).
+    private fun restoreUnknownHosts() {
+        try {
+            val saved = prefs.getStringSet(PREF_UNKNOWN_HOSTS, null)
+            if (saved != null) {
+                synchronized(unknownHosts) { unknownHosts.addAll(saved) }
+            }
+        } catch (e: Exception) {
+            Log.e("YTBrowser", "Khong doc duoc danh sach domain la da luu", e)
+        }
+    }
+
+    private fun persistUnknownHosts() {
+        try {
+            val snapshot: Set<String> = synchronized(unknownHosts) { LinkedHashSet(unknownHosts) }
+            prefs.edit().putStringSet(PREF_UNKNOWN_HOSTS, snapshot).apply()
+        } catch (e: Exception) {
+            Log.e("YTBrowser", "Khong luu duoc danh sach domain la", e)
+        }
+    }
+
+    // Ghi nhận 1 domain "lạ" (không allow, không block) - gọi từ shouldInterceptRequest() và
+    // shouldOverrideUrlLoading() bên dưới. Có thể chạy trên luồng nền nên phải synchronized.
+    private fun trackUnknownHost(host: String?) {
+        if (host.isNullOrBlank()) return
+        val h = host.lowercase()
+        var added: Boolean
+        synchronized(unknownHosts) {
+            added = unknownHosts.add(h)
+            if (unknownHosts.size > MAX_UNKNOWN_HOSTS) {
+                val it = unknownHosts.iterator()
+                if (it.hasNext()) {
+                    it.next()
+                    it.remove()
+                }
+            }
+        }
+        if (added) persistUnknownHosts()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    // Hiện bảng "lỗi" liệt kê các domain lạ đã dò được, kèm nút Copy (copy vào clipboard rồi
+    // tự tắt bảng luôn, đồng thời xoá danh sách hiện tại để lần báo cáo sau chỉ còn domain MỚI).
+    private fun showUnknownDomainsDialog() {
+        val hostsSnapshot: List<String> = synchronized(unknownHosts) { unknownHosts.toList() }
+        if (hostsSnapshot.isEmpty()) {
+            Toast.makeText(this, "Chưa phát hiện domain lạ nào", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val reportText = hostsSnapshot.joinToString("\n")
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(4))
+        }
+        val info = TextView(this).apply {
+            text = "Các domain lạ (chưa nằm trong danh sách chặn/cho phép) mà app gặp phải. " +
+                "Bấm \"Copy\" để sao chép rồi dán gửi lại để bổ sung vào bộ lọc chặn quảng cáo."
+            setPadding(0, 0, 0, dp(12))
+        }
+        container.addView(info)
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(320)
+            )
+        }
+        val list = TextView(this).apply {
+            text = reportText
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 13f
+        }
+        scroll.addView(list)
+        container.addView(scroll)
+
+        AlertDialog.Builder(this)
+            .setTitle("Phát hiện ${hostsSnapshot.size} domain lạ")
+            .setView(container)
+            .setPositiveButton("Copy") { dialog, _ ->
+                val clipboard =
+                    getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("domain la", reportText))
+                Toast.makeText(this, "Đã copy ${hostsSnapshot.size} domain", Toast.LENGTH_SHORT).show()
+                // Xoá sau khi đã copy để lần vuốt sau chỉ hiện domain MỚI phát sinh.
+                synchronized(unknownHosts) { unknownHosts.clear() }
+                persistUnknownHosts()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Đóng", null)
+            .setCancelable(true)
+            .show()
+    }
+
+    // Bắt cử chỉ 2 ngón tay vuốt dọc từ trên xuống ở BẤT KỲ đâu trên màn hình (kể cả trên
+    // WebView) để mở bảng domain lạ. Đặt ở dispatchTouchEvent() của Activity (chạy TRƯỚC khi sự
+    // kiện chạm được chuyển xuống WebView) để chắc chắn bắt được, không phụ thuộc WebView có tự
+    // xử lý/chặn sự kiện chạm hay không.
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (ev.pointerCount == 2) {
+                    twoFingerGestureStartY = (ev.getY(0) + ev.getY(1)) / 2f
+                    twoFingerGestureStartX = (ev.getX(0) + ev.getX(1)) / 2f
+                    twoFingerGestureActive = true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (twoFingerGestureActive && ev.pointerCount >= 2) {
+                    val curY = (ev.getY(0) + ev.getY(1)) / 2f
+                    val curX = (ev.getX(0) + ev.getX(1)) / 2f
+                    val dy = curY - twoFingerGestureStartY
+                    val dx = Math.abs(curX - twoFingerGestureStartX)
+                    if (dy > dp(TWO_FINGER_SWIPE_MIN_DISTANCE_DP.toInt()) &&
+                        dx < dp(TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP.toInt())
+                    ) {
+                        // Mở bảng NGAY rồi reset cờ liền - 1 khi AlertDialog xuất hiện, nó có cửa
+                        // sổ (Window) RIÊNG, các sự kiện chạm tiếp theo (kể cả ACTION_UP/CANCEL
+                        // của lượt vuốt này) sẽ không còn đi qua dispatchTouchEvent() của
+                        // Activity nữa - nếu không reset ngay ở đây, cờ có thể bị "kẹt" ở true,
+                        // khiến mọi thao tác chạm sau đó (kể cả cuộn 1 ngón bình thường) bị nuốt
+                        // nhầm sau khi đóng bảng.
+                        twoFingerGestureActive = false
+                        showUnknownDomainsDialog()
+                        return true
+                    }
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                twoFingerGestureActive = false
+            }
+            else -> {}
+        }
+
+        return super.dispatchTouchEvent(ev)
     }
 
     /** Xin đưa app vào danh sách "không tối ưu hoá pin" của hệ thống - dù đã có Foreground
@@ -238,8 +409,10 @@ class MainActivity : AppCompatActivity() {
                 val host = uri.host
                 if (isHostBlocked(host)) return true // chặn hẳn, không load
                 if (!isHostAllowed(host)) {
-                    // Domain lạ (vd link ngoài trong mô tả video) -> vẫn cho mở trong app,
-                    // nếu bạn muốn chặn hẳn thì đổi return false -> return true ở đây.
+                    // Domain lạ (vd link ngoài trong mô tả video) -> ghi nhận lại để có thể xem
+                    // qua bảng báo cáo (vuốt 2 ngón dọc từ trên xuống), vẫn cho mở trong app.
+                    // Nếu bạn muốn chặn hẳn thì đổi return false -> return true ở đây.
+                    trackUnknownHost(host)
                     return false
                 }
                 return false
@@ -257,6 +430,12 @@ class MainActivity : AppCompatActivity() {
                         "utf-8",
                         ByteArrayInputStream(ByteArray(0))
                     )
+                }
+                // Domain KHÔNG bị chặn nhưng CŨNG KHÔNG thuộc allowedHostSuffixes -> ghi nhận
+                // là domain lạ để dò và bổ sung bộ lọc chặn quảng cáo sau này (xem
+                // showUnknownDomainsDialog() + dispatchTouchEvent() ở dưới).
+                if (!isHostAllowed(host)) {
+                    trackUnknownHost(host)
                 }
                 return super.shouldInterceptRequest(view, request)
             }
