@@ -166,9 +166,9 @@ class MainActivity : AppCompatActivity() {
     private var twoFingerGestureStartX = 0f
     private var twoFingerGestureActive = false
     // Khoảng cách tối thiểu phải vuốt XUỐNG (tính theo dp) mới coi là cử chỉ hợp lệ.
-    private val TWO_FINGER_SWIPE_MIN_DISTANCE_DP = 100f
+    private val TWO_FINGER_SWIPE_MIN_DISTANCE_DP = 100
     // Nếu vuốt CHÉO quá nhiều theo chiều ngang thì không tính là "vuốt dọc" nữa.
-    private val TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP = 90f
+    private val TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP = 90
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -302,8 +302,8 @@ class MainActivity : AppCompatActivity() {
                     val curX = (ev.getX(0) + ev.getX(1)) / 2f
                     val dy = curY - twoFingerGestureStartY
                     val dx = Math.abs(curX - twoFingerGestureStartX)
-                    if (dy > dp(TWO_FINGER_SWIPE_MIN_DISTANCE_DP.toInt()) &&
-                        dx < dp(TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP.toInt())
+                    if (dy > dp(TWO_FINGER_SWIPE_MIN_DISTANCE_DP) &&
+                        dx < dp(TWO_FINGER_SWIPE_MAX_HORIZONTAL_DP)
                     ) {
                         // Mở bảng NGAY rồi reset cờ liền - 1 khi AlertDialog xuất hiện, nó có cửa
                         // sổ (Window) RIÊNG, các sự kiện chạm tiếp theo (kể cả ACTION_UP/CANCEL
